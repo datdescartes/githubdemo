@@ -5,11 +5,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.BasicTextField
@@ -32,9 +32,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -47,15 +45,19 @@ import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.flow.collectLatest
 import me.dat.app.githubdemo.R
 import me.dat.app.githubdemo.entities.UserEntity
+import me.dat.app.githubdemo.ui.common.OnBottomReached
 import me.dat.app.githubdemo.ui.theme.GithubDemoTheme
 
 @Composable
 fun UsersScreen(
-    viewModel: UsersViewModel = hiltViewModel(), onUserClick: (UserEntity) -> Unit
+    viewModel: UsersViewModel = hiltViewModel(),
+    onUserClick: (UserEntity) -> Unit,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackBarHostState = remember { SnackbarHostState() }
     val res = LocalContext.current.resources
+    val listState = rememberLazyListState()
+
     LaunchedEffect(Unit) {
         viewModel.event.collectLatest { event ->
             when (event) {
@@ -64,6 +66,10 @@ fun UsersScreen(
                         message = res.getString(R.string.error_message)
                     )
                 }
+
+                UsersViewModel.Event.ScrollToTop -> {
+                    listState.animateScrollToItem(0)
+                }
             }
         }
     }
@@ -71,6 +77,7 @@ fun UsersScreen(
     UiStateHandler(
         uiState = uiState,
         snackBarHostState = snackBarHostState,
+        listState = listState,
         onUserClick = onUserClick,
         onQueryChanged = viewModel::onSearchQueryChanged,
         onSearchSubmit = viewModel::onSearchQuerySubmitted,
@@ -83,6 +90,7 @@ fun UsersScreen(
 private fun UiStateHandler(
     uiState: UsersViewModel.UiState,
     snackBarHostState: SnackbarHostState,
+    listState: LazyListState,
     onUserClick: (UserEntity) -> Unit,
     onQueryChanged: (String) -> Unit,
     onSearchSubmit: (String) -> Unit,
@@ -90,7 +98,6 @@ private fun UiStateHandler(
 ) {
     var searchQuery by remember { mutableStateOf("") }
     var isSubmitted by remember { mutableStateOf(false) }
-    val listState = rememberLazyListState()
 
     Scaffold(snackbarHost = { SnackbarHost(snackBarHostState) }, topBar = {
         TopAppBar(title = {
@@ -105,14 +112,21 @@ private fun UiStateHandler(
         })
     }) {
         Column(modifier = Modifier.padding(it)) {
-            if (uiState.isLoading) {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
+            if (uiState.isLoading && uiState.users.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
             }
             LazyColumn(state = listState) {
                 items(uiState.users) { user ->
                     UserItem(user = user, onClick = onUserClick)
                 }
-                if (uiState.hasMore) {
+                if (uiState.hasMore && uiState.isLoading) {
                     item {
                         Box(
                             modifier = Modifier
@@ -126,13 +140,9 @@ private fun UiStateHandler(
                 }
             }
         }
-        LaunchedEffect(listState) {
-            snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull() }
-                .collect { lastVisibleItem ->
-                    if (lastVisibleItem != null && lastVisibleItem.index == uiState.users.size - 1) {
-                        onLoadmore()
-                    }
-                }
+
+        listState.OnBottomReached {
+            onLoadmore()
         }
     }
 }
@@ -212,6 +222,7 @@ fun UsersScreenPreview() {
                 isLoading = true,
             ),
             snackBarHostState = remember { SnackbarHostState() },
+            listState = rememberLazyListState(),
             onUserClick = { },
             onQueryChanged = { },
             onSearchSubmit = { },

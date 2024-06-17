@@ -2,23 +2,35 @@ package me.dat.app.githubdemo.ui.repositories
 
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -26,16 +38,15 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.launch
 import me.dat.app.githubdemo.R
 import me.dat.app.githubdemo.entities.RepositoryEntity
 import me.dat.app.githubdemo.entities.UserDetailEntity
+import me.dat.app.githubdemo.ui.common.OnBottomReached
 import me.dat.app.githubdemo.ui.theme.GithubDemoTheme
 
 @Composable
 fun RepositoriesScreen(
     username: String,
-    modifier: Modifier = Modifier,
     viewModel: RepositoriesViewModel = hiltViewModel(),
     onRepositoryClick: (RepositoryEntity) -> Unit = {},
     onBack: () -> Unit
@@ -74,7 +85,6 @@ private fun UiStateHandler(
     onBack: () -> Unit
 ) {
     val listState = rememberLazyListState()
-    val coroutineScope = rememberCoroutineScope()
     Scaffold(
         topBar = {
             TopAppBar(
@@ -144,15 +154,8 @@ private fun UiStateHandler(
                     }
                 }
 
-                LaunchedEffect(listState) {
-                    snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull() }
-                        .collect { lastVisibleItem ->
-                            if (lastVisibleItem != null && lastVisibleItem.index == uiState.repositories.size - 1) {
-                                coroutineScope.launch {
-                                    onLoadingMore()
-                                }
-                            }
-                        }
+                listState.OnBottomReached {
+                    onLoadingMore()
                 }
             }
 
